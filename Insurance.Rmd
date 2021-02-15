@@ -1,0 +1,75 @@
+---
+title: "Insurance Costs Predictive Analysis"
+author: "Tariq Abubakr"
+date: "2/15/2021"
+output: html_document
+---
+
+Using insurance data, I analyzed the effects that different variables have on insurance costs. The data I downloaded from Kaggle contains 1,338 anonymous individuals and includes their age, BMI (body mass index), the number of children they have, whether they smoke, and the region they reside in within the U.S. Using this data, I also set out to predict a person's insurance costs based on these variables.
+
+```{r setup,message=FALSE,warning=FALSE}
+library(sqldf)
+library(ggplot2)
+insurance <- read.csv("~/Downloads/insurance.csv") 
+head(insurance)
+```
+
+To begin the EDA, I break down the data by region in order to see how they compare to each other.
+
+```{r,out.width="60%"}
+region <- sqldf("SELECT AVG(bmi) AS avg_bmi,region,AVG(charges) AS avg_charges FROM insurance GROUP BY region")
+r <- ggplot(region, aes(region,avg_charges)) + geom_bar(stat="identity",fill='maroon') + theme_minimal()
+plot(r)
+```
+
+As we can see, the southeast of the U.S. has the highest average insurance costs of any region. Conversely, the southwest is the region with the lowest average insurance costs, just edging out the northwest. Next, I compare smokers and non-smokers to see how big the difference is between the two categories.
+
+```{r,out.width="60%"}
+smoker <- sqldf("SELECT AVG(bmi) AS avg_bmi,smoker,AVG(charges) AS avg_charges FROM insurance GROUP BY smoker")
+s <- ggplot(smoker, aes(smoker,avg_charges)) + geom_bar(stat="identity",fill='black') + ylab("Average Charge")+ theme_minimal()
+plot(s)
+```
+
+Unsurprisingly, smokers have much higher medical costs than non-smokers, topping an extraordinary $30,000 per year. Insurance companies, knowing the person is a smoker, charge much higher premiums than average to offset the risk they take on by insuring a smoker.
+
+Interestingly, some of my hypotheses turned out to be wrong regarding certain groups' medical costs. For instance, I figured that older people or people with higher BMIs would have noticably higher medical costs than others.
+
+```{r}
+bmi_cor <- cor(insurance$bmi,insurance$charges)
+age_cor <- cor(insurance$age,insurance$charges)
+bmi_cor
+age_cor
+```
+
+However, the correlation between a person's BMI and their healh costs is only 0.20, well below the mark necessary to indicate a strong correlation. The same goes for age, which only has a 0.30 correlation with medical charges, well below my expectations. 
+
+In order to predict how much someone's medical costs will add up to, I make a multiple linear regression model.
+
+```{r}
+mod <- lm(charges ~ age + sex + bmi + children + smoker + region, data=insurance)
+summary(mod)
+```
+
+Using a female non-smoker located in the northeast as our baseline, the model predicts that as age, BMI, number of children, and smoking increase, so will the person's medical costs. On the other hand, being a male and living in any of the other regions will decrease their costs. Some of this goes against intuition, as the southeast is a notably less healthy region than the northeast and women are thought to be healthier than men on average. The standard error for sex is very high, though, at 332.9, making the variable not significant. We can also see that the multiple R-squared for this regression is 0.75, meaning that 75% of the variation in this model can be explained by the variables included.
+
+Using this model, I enter my personal variables to determine what my medical costs would be.
+
+```{r}
+pred_1 <- predict(mod, newdata=data.frame(age=21,sex='male',bmi=23.1,children=0,smoker='no',region='northeast'))
+pred_1
+```
+
+The model predicts I would have an annual medical cost of $1,159, which sounds about right. Next, I try to predict the medical cost of a woman of similar age and BMI, but who's a smoker.
+
+```{r}
+pred_2 <- predict(mod, newdata=data.frame(age=25,sex='female',bmi=25,children=0,smoker='yes',region='southwest'))
+pred_2
+
+pred_3 <- predict(mod, newdata=data.frame(age=60,sex='female',bmi=45,children=3,smoker='no',region='southeast'))
+pred_3
+```
+
+We see here just how much being a smoker raises someone's annual medical costs. Even at a young age and low BMI, the first woman has to pay $25,851, likely from extremely high premiums and deductibles. In comparison, the second woman, despite being 60 years old, a higher BMI, and three children, only has to pay a little over $19,000 per year. 
+
+
+
